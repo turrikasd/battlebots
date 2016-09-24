@@ -70,6 +70,33 @@ set(SRC_GRP_AI
     AI/ReactorAI.h
     AI/TotemAI.cpp
     AI/TotemAI.h
+	
+set(SRC_GRP_PLAYERBOT
+	playerbot/config.h
+	playerbot/PlayerbotAI.cpp
+	playerbot/PlayerbotAI.h
+	playerbot/PlayerbotClassAI.cpp
+	playerbot/PlayerbotClassAI.h
+	playerbot/PlayerbotDruidAI.cpp
+	playerbot/PlayerbotDruidAI.h
+	playerbot/PlayerbotHunterAI.cpp
+	playerbot/PlayerbotHunterAI.h
+	playerbot/PlayerbotMageAI.cpp
+	playerbot/PlayerbotMageAI.h
+	playerbot/PlayerbotMgr.cpp
+	playerbot/PlayerbotMgr.h
+	playerbot/PlayerbotPaladinAI.cpp
+	playerbot/PlayerbotPaladinAI.h
+	playerbot/PlayerbotPriestAI.cpp
+	playerbot/PlayerbotPriestAI.h
+	playerbot/PlayerbotRogueAI.cpp
+	playerbot/PlayerbotRogueAI.h
+	playerbot/PlayerbotShamanAI.cpp
+	playerbot/PlayerbotShamanAI.h
+	playerbot/PlayerbotWarlockAI.cpp
+	playerbot/PlayerbotWarlockAI.h
+	playerbot/PlayerbotWarriorAI.cpp
+	playerbot/PlayerbotWarriorAI.h
 )
 
 set(SRC_GRP_AHBOT
@@ -404,8 +431,13 @@ set(SRC_GRP_WORLD_HANDLERS
     World.h
 )
 
+
 set(LIBRARY_SRCS
+<<<<<<< HEAD
     ${SRC_GRP_AI}
+=======
+    ${SRC_GRP_PLAYERBOT}
+>>>>>>> 4b26066f5f4556a603b48d454a665247191d921d
     ${SRC_GRP_AHBOT}
     ${SRC_GRP_BATTLEGROUND}
     ${SRC_GRP_CHAT_COMMANDS}
@@ -422,9 +454,15 @@ set(LIBRARY_SRCS
     pchdef.h
 )
 
+<<<<<<< HEAD
 source_group("AI"
   FILES
     ${SRC_GRP_AI}
+=======
+source_group("PlayerBot"
+  FILES
+    ${SRC_GRP_PLAYERBOT}
+>>>>>>> 4b26066f5f4556a603b48d454a665247191d921d
 )
 
 source_group("AhBot"
@@ -515,3 +553,5 @@ add_dependencies(${LIBRARY_NAME} revision.h)
 if(PCH)
   cotire(${LIBRARY_NAME})
 endif()
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/playerbot/playerbot.conf.dist.in DESTINATION ${CONF_DIR} RENAME playerbot.conf.dist)

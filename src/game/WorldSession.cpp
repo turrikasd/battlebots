@@ -37,6 +37,10 @@
 #include "SocialMgr.h"
 #include "LootMgr.h"
 
+// Playerbot mod
+#include "playerbot/PlayerbotMgr.h"
+#include "playerbot/PlayerbotAI.h"
+
 #include <mutex>
 #include <deque>
 #include <algorithm>
@@ -118,6 +122,17 @@ char const* WorldSession::GetPlayerName() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet)
 {
+    // Playerbot mod: send packet to bot AI
+    if (GetPlayer()) {
+        if (GetPlayer()->GetPlayerbotAI())
+            GetPlayer()->GetPlayerbotAI()->HandleBotOutgoingPacket(*packet);
+        else if (GetPlayer()->GetPlayerbotMgr())
+            GetPlayer()->GetPlayerbotMgr()->HandleMasterOutgoingPacket(*packet);
+    }
+    
+    if (!m_Socket)
+        return;
+
     if (m_Socket->IsClosed())
         return;
 
@@ -219,6 +234,11 @@ bool WorldSession::Update(PacketFilter& updater)
                         ExecuteOpcode(opHandle, packet);
 
                     // lag can cause STATUS_LOGGEDIN opcodes to arrive after the player started a transfer
+
+                    // playerbot mod
+                    if (_player && _player->GetPlayerbotMgr())
+                        _player->GetPlayerbotMgr()->HandleMasterIncomingPacket(*packet);
+                    // playerbot mod end
                     break;
                 case STATUS_LOGGEDIN_OR_RECENTLY_LOGGEDOUT:
                     if (!_player && !m_playerRecentlyLogout)
@@ -291,6 +311,31 @@ bool WorldSession::Update(PacketFilter& updater)
         delete packet;
     }
 
+    // Playerbot mod - Process player bot packets
+    // The PlayerbotAI class adds to the packet queue to simulate a real player
+    // since Playerbots are known to the World obj only by its master's WorldSession object
+    // we need to process all master's bot's packets.
+    if (GetPlayer() && GetPlayer()->GetPlayerbotMgr()) {
+        for (PlayerBotMap::const_iterator itr = GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsBegin();
+                itr != GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsEnd(); ++itr)
+        {
+            Player* const botPlayer = itr->second;
+            WorldSession* const pBotWorldSession = botPlayer->GetSession();
+            if (botPlayer->IsBeingTeleported())
+                botPlayer->GetPlayerbotAI()->HandleTeleportAck();
+            else if (botPlayer->IsInWorld())
+            {
+                std::for_each(pBotWorldSession->m_recvQueue.begin(), pBotWorldSession->m_recvQueue.end(), [&pBotWorldSession](WorldPacket* packet)
+                {
+                    OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
+                    (pBotWorldSession->*opHandle.handler)(*packet);
+                    delete packet;
+                });
+                pBotWorldSession->m_recvQueue.clear();
+            }
+        }
+    }
+
     // check if we are safe to proceed with logout
     // logout procedure should happen only in World::UpdateSessions() method!!!
     if (updater.ProcessLogout())
@@ -321,6 +366,10 @@ void WorldSession::LogoutPlayer(bool Save)
 
     if (_player)
     {
+        // Playerbot mod: log out all player bots owned by this toon
+        if (_player->GetPlayerbotMgr())
+            _player->GetPlayerbotMgr()->LogoutAllBots();
+
         sLog.outChar("Account: %d (IP: %s) Logout Character:[%s] (guid: %u)", GetAccountId(), GetRemoteAddress().c_str(), _player->GetName() , _player->GetGUIDLow());
 
         if (Loot* loot = sLootMgr.GetLoot(_player))
@@ -409,8 +458,11 @@ void WorldSession::LogoutPlayer(bool Save)
         // No SQL injection as AccountID is uint32
         static SqlStatementID id;
 
-        SqlStatement stmt = LoginDatabase.CreateStatement(id, "UPDATE account SET active_realm_id = ? WHERE id = ?");
-        stmt.PExecute(uint32(0), GetAccountId());
+        if (! _player->GetPlayerbotAI())
+        {
+            SqlStatement stmt = LoginDatabase.CreateStatement(id, "UPDATE account SET active_realm_id = ? WHERE id = ?");
+            stmt.PExecute(uint32(0), GetAccountId());
+        }
 
         ///- If the player is in a guild, update the guild roster and broadcast a logout message to other guild members
         if (Guild* guild = sGuildMgr.GetGuildById(_player->GetGuildId()))
@@ -440,7 +492,7 @@ void WorldSession::LogoutPlayer(bool Save)
 
         // remove player from the group if he is:
         // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
-        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && !m_Socket->IsClosed())
+        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket && !m_Socket->IsClosed())
             _player->RemoveFromGroup();
 
         ///- Send update to group
@@ -450,6 +502,9 @@ void WorldSession::LogoutPlayer(bool Save)
         ///- Broadcast a logout message to the player's friends
         sSocialMgr.SendFriendStatus(_player, FRIEND_OFFLINE, _player->GetObjectGuid(), true);
         sSocialMgr.RemovePlayerSocial(_player->GetGUIDLow());
+
+        // Playerbot - remember player GUID for update SQL below
+        uint32 guid = _player->GetGUIDLow();
 
         ///- Remove the player from the world
         // the player may not be in the world when logging out
@@ -472,13 +527,11 @@ void WorldSession::LogoutPlayer(bool Save)
         WorldPacket data(SMSG_LOGOUT_COMPLETE, 0);
         SendPacket(&data);
 
-        ///- Since each account can only have one online character at any given time, ensure all characters for active account are marked as offline
-        // No SQL injection as AccountId is uint32
-
         static SqlStatementID updChars;
 
-        stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 0 WHERE account = ?");
-        stmt.PExecute(GetAccountId());
+        // Playerbot mod: set for only character instead of accountid
+        SqlStatement stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 0 WHERE guid = ?");
+        stmt.PExecute(guid);
 
         DEBUG_LOG("SESSION: Sent SMSG_LOGOUT_COMPLETE Message");
     }
@@ -492,7 +545,7 @@ void WorldSession::LogoutPlayer(bool Save)
 /// Kick a player out of the World
 void WorldSession::KickPlayer()
 {
-    if (!m_Socket->IsClosed())
+    if (m_Socket && !m_Socket->IsClosed())
         m_Socket->Close();
 }
 
