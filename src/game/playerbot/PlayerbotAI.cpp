@@ -1537,15 +1537,34 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 	case SMSG_GROUP_JOINED_BATTLEGROUND:
 	{
 		TellMaster("SMSG_GROUP_JOINED_BATTLEGROUND Recieved");
+		return;
+	}
 
-		SetIgnoreUpdateTime(0);
+	case SMSG_BATTLEFIELD_STATUS:
+	{
+		TellMaster("SMSG_BATTLEFIELD_STATUS Recieved");
+
 		WorldPacket p(packet);
 
-		m_bot->GetMotionMaster()->Clear(true);
+		/*uint32 queSlot;
+		uint64 arenatype;
+		uint32 clientInstanceId;
+		uint8 isRated;*/
+		uint32 StatusID;
+		uint32 MapId;
+		uint32 Time1;
 
-		// Nothing
+		p >> Time1;
+		p >> MapId;
+		p >> StatusID;
 
-		SetIgnoreUpdateTime(4);
+		if (StatusID == STATUS_WAIT_JOIN)
+		{
+			TellMaster("SMSG_BATTLEFIELD_STATUS with StatusID STATUS_WAIT_JOIN Recieved. Joining BG...");
+			m_bot->GetMotionMaster()->Clear(true);
+			JoinBattleground();
+			SetIgnoreUpdateTime(4);
+		}
 
 		return;
 	}
