@@ -525,7 +525,7 @@ void PlayerbotAI::AutoUpgradeEquipment() // test for autoequip
             }
         }
 
-        if (pItem->GetProto()->Flags & ITEM_FLAG_LOOTABLE && spellId == 0)
+        if (pItem->GetProto()->Flags & ITEM_FLAG_HAS_LOOT && spellId == 0)
         {
             std::string oops = "Oh... Look! Theres something inside!!!";
             m_bot->Say(oops, LANG_UNIVERSAL);
@@ -1533,6 +1533,22 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             }
             return;
         }
+
+	case SMSG_GROUP_JOINED_BATTLEGROUND:
+	{
+		TellMaster("SMSG_GROUP_JOINED_BATTLEGROUND Recieved");
+
+		SetIgnoreUpdateTime(0);
+		WorldPacket p(packet);
+
+		m_bot->GetMotionMaster()->Clear(true);
+
+		// Nothing
+
+		SetIgnoreUpdateTime(4);
+
+		return;
+	}
 
     case SMSG_PET_TAME_FAILURE:
         {
@@ -2840,6 +2856,25 @@ void PlayerbotAI::InterruptCurrentCastingSpell()
     m_bot->GetSession()->QueuePacket(packet);
 }
 
+bool PlayerbotAI::IsFeasting()
+{
+	if (m_bDebugFeast)
+		return true;
+
+	if (m_bot->GetPowerType() == POWER_MANA && CurrentTime() < m_TimeDoneDrinking
+		&& ((static_cast<float> (m_bot->GetPower(POWER_MANA)) / m_bot->GetMaxPower(POWER_MANA)) < 0.8))
+	{
+		return true;
+	}
+
+	if (CurrentTime() < m_TimeDoneEating && ((static_cast<float> (m_bot->GetHealth()) / m_bot->GetMaxHealth()) < 0.8))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 void PlayerbotAI::Feast()
 {
     // stand up if we are done feasting
@@ -2862,6 +2897,7 @@ void PlayerbotAI::Feast()
             TellMaster("drinking %s now...",pItem->GetProto()->Name1);
             UseItem(pItem);
             m_TimeDoneDrinking = CurrentTime() + 30;
+			MovementReset();
             return;
         }
         TellMaster("I need water.");
@@ -2876,6 +2912,7 @@ void PlayerbotAI::Feast()
             TellMaster("eating %s now...",pItem->GetProto()->Name1);
             UseItem(pItem);
             m_TimeDoneEating = CurrentTime() + 30;
+			MovementReset();
             return;
         }
         TellMaster("I need food.");
@@ -4251,6 +4288,10 @@ void PlayerbotAI::MovementReset()
         if (m_bot->isInCombat())
             return;
 
+		// don't follow while feasting
+		if (IsFeasting())
+			return;
+
         Player* pTarget;                            // target is player
         if (m_followTarget->GetTypeId() == TYPEID_PLAYER)
             pTarget = ((Player*) m_followTarget);
@@ -4267,7 +4308,7 @@ void PlayerbotAI::MovementReset()
         }
 
         // is bot too far from the follow target
-        if (!m_bot->IsWithinDistInMap(distTarget, 50))
+        if (!m_bot->IsWithinDistInMap(distTarget, 1000))
         {
             DoTeleport(*m_followTarget);
             return;
@@ -4362,7 +4403,7 @@ void PlayerbotAI::MovementClear()
     m_bot->GetMotionMaster()->Initialize();
 
     // stand up...
-    if (!m_bot->IsStandState())
+    if (!m_bot->IsStandState() && !IsFeasting())
         m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 }
 
@@ -6341,7 +6382,7 @@ void PlayerbotAI::UseItem(Item *item, uint32 targetFlag, ObjectGuid targetGUID)
         }
     }
 
-    if (item->GetProto()->Flags & ITEM_FLAG_LOOTABLE && spellId == 0)
+    if (item->GetProto()->Flags & ITEM_FLAG_HAS_LOOT && spellId == 0)
     {
         // Open quest item in inventory, containing related items (e.g Gnarlpine necklace, containing Tallonkai's Jewel)
         WorldPacket* const packet = new WorldPacket(CMSG_OPEN_ITEM, 2);
@@ -7532,6 +7573,9 @@ void PlayerbotAI::HandleCommand(const std::string& text, Player& fromPlayer)
     else if (ExtractCommand("stats", input))
         _HandleCommandStats(input, fromPlayer);
 
+	else if (ExtractCommand("debug", input))
+		_HandleCommandDebug(input, fromPlayer);
+
     else
     {
         // if this looks like an item link, reward item it completed quest and talking to NPC
@@ -7648,6 +7692,42 @@ void PlayerbotAI::_HandleCommandReset(std::string &text, Player &fromPlayer)
     m_lootTargets.clear();
     m_lootCurrent = ObjectGuid();
     m_targetCombat = 0;
+}
+
+void PlayerbotAI::_HandleCommandDebug(std::string &text, Player &fromPlayer)
+{
+	if (ExtractCommand("feast", text))
+	{
+		TellMaster("Feast Debug ON");
+		m_bDebugFeast = true;
+	}
+
+	if (ExtractCommand("joinbg", text))
+	{
+		TellMaster("Attempting to join BG");
+		JoinBattleground();
+	}
+}
+
+void PlayerbotAI::JoinBattleground()
+{
+	WorldPacket* const packet = new WorldPacket(CMSG_BATTLEFIELD_PORT, 8);
+
+	uint8 type;                                             // arenatype if arena
+	uint8 unk2;                                             // unk, can be 0x0 (may be if was invited?) and 0x1
+	uint32 bgTypeId_;                                       // type id from dbc
+	uint16 unk;                                             // 0x1F90 constant?
+	uint8 action;                                           // enter battle 0x1, leave queue 0x0
+
+	type = ArenaType(ARENA_TYPE_NONE);
+	unk2 = 0x0;
+	bgTypeId_ = BattleGroundTypeId(BATTLEGROUND_WS);
+	unk = 0x1F90;
+	action = 0x1;
+
+	*packet << type << unk2 << bgTypeId_ << unk << action;
+
+	m_bot->GetSession()->QueuePacket(packet); // queue the packet to get around race condition
 }
 
 void PlayerbotAI::_HandleCommandOrders(std::string &text, Player &fromPlayer)

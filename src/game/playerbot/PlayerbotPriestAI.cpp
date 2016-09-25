@@ -397,6 +397,13 @@ void PlayerbotPriestAI::DoNonCombatActions()
     if (ai->SelfBuff(INNER_FIRE))
         return;
 
+	if (ai->GetManaPercent() < 30 || ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
+
+	/* OLD CODE
     // mana check
     if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
         m_bot->SetStandState(UNIT_STAND_STATE_STAND);
@@ -429,6 +436,7 @@ void PlayerbotPriestAI::DoNonCombatActions()
         ai->UseItem(fItem);
         return;
     }
+	*/
 
     // buff and heal master's group
     if (master->GetGroup())

@@ -83,6 +83,9 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mangosscript</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mangosscript</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LibraryPath>E:\Programs\boost_1_62_0_b2\lib64-msvc-14.0;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>

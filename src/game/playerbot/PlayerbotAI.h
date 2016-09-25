@@ -487,6 +487,7 @@ public:
     void MovementReset();
     void MovementClear();
     bool IsMoving();
+	bool IsFeasting();
 
     void ItemLocalization(std::string& itemName, const uint32 itemID) const;
     void QuestLocalization(std::string& questTitle, const uint32 questID) const;
@@ -509,6 +510,8 @@ public:
     void BankBalance();
     std::string Cash(uint32 copper);
     std::string AuctionResult(std::string subject, std::string body);
+
+	void JoinBattleground();
 
 private:
     bool ExtractCommand(const std::string sLookingFor, std::string &text, bool bUseShort = false);
@@ -546,6 +549,7 @@ private:
     void _HandleCommandHelp(std::string &text, Player &fromPlayer);
     void _HandleCommandHelp(const char* szText, Player &fromPlayer) { std::string text = szText; _HandleCommandHelp(text, fromPlayer); }
     void _HandleCommandGM(std::string &text, Player &fromPlayer);
+	void _HandleCommandDebug(std::string &text, Player &fromPlayer);
     std::string _HandleCommandHelpHelper(std::string sCommand, std::string sExplain, HELPERLINKABLES reqLink = HL_NONE, bool bReqLinkMultiples = false, bool bCommandShort = false);
 
     // ****** Closed Actions ********************************
@@ -643,6 +647,9 @@ private:
     float m_destX, m_destY, m_destZ; // latest coordinates for chase and point movement types
 
     bool m_bDebugCommandChat;
+
+	// Debug Commands
+	bool m_bDebugFeast;
 };
 
 #endif
