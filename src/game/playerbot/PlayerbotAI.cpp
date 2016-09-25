@@ -1542,8 +1542,6 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 
 	case SMSG_BATTLEFIELD_STATUS:
 	{
-		TellMaster("SMSG_BATTLEFIELD_STATUS Recieved");
-
 		WorldPacket p(packet);
 
 		/*uint32 queSlot;
@@ -1557,8 +1555,11 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 		p >> Time1;
 		p >> MapId;
 		p >> StatusID;
+		p >> StatusID;
 
-		if (StatusID == STATUS_WAIT_JOIN)
+		//TellMaster("SMSG_BATTLEFIELD_STATUS Recieved with StatusID %u", StatusID);
+
+		if (StatusID == STATUS_WAIT_QUEUE) // This whole part is wrong somehow but works...
 		{
 			TellMaster("SMSG_BATTLEFIELD_STATUS with StatusID STATUS_WAIT_JOIN Recieved. Joining BG...");
 			m_bot->GetMotionMaster()->Clear(true);
@@ -3334,7 +3335,7 @@ void PlayerbotAI::DoLoot()
     WorldObject *wo = m_bot->GetMap()->GetWorldObject(m_lootCurrent);
 
     // clear invalid object or object that is too far from master
-    if (!wo || GetMaster()->GetDistance(wo) > float(m_mgr->m_confCollectDistanceMax))
+    if (!wo)// || GetMaster()->GetDistance(wo) > float(m_mgr->m_confCollectDistanceMax)) // TODO: Not working properly?
     {
         m_lootCurrent = ObjectGuid();
         return;
@@ -4414,6 +4415,128 @@ void PlayerbotAI::MovementReset()
                 m_FollowAutoGo = FOLLOWAUTOGO_INIT;
         }
     }
+
+	else if (m_movementOrder == MOVEMENT_WSG)
+	{
+		// Alliance flag aura 23335
+		bool iHaveFlag = false;
+		bool ourTeamHasFlag = false;
+
+		if (m_bot->HasAura(23335) || m_bot->HasAura(23333) || m_bHasFlag)
+		{
+			iHaveFlag = true;
+		}
+
+		if (!iHaveFlag)
+		{
+			// Find flag
+			uint32 count = 0;
+			std::ostringstream detectout;
+			QueryResult *result;
+			GameEventMgr::ActiveEvents const& activeEventsList = sGameEventMgr.GetActiveEventList();
+			std::ostringstream eventFilter;
+			eventFilter << " AND (event IS NULL ";
+			bool initString = true;
+
+			for (GameEventMgr::ActiveEvents::const_iterator itr = activeEventsList.begin(); itr != activeEventsList.end(); ++itr)
+			{
+				if (initString)
+				{
+					eventFilter << "OR event IN (" << *itr;
+					initString = false;
+				}
+				else
+					eventFilter << "," << *itr;
+			}
+
+			if (!initString)
+				eventFilter << "))";
+			else
+				eventFilter << ")";
+
+			result = WorldDatabase.PQuery("SELECT gameobject.guid, id, position_x, position_y, position_z, map, "
+				"(POW(position_x - %f, 2) + POW(position_y - %f, 2) + POW(position_z - %f, 2)) AS order_ FROM gameobject "
+				"LEFT OUTER JOIN game_event_gameobject on gameobject.guid=game_event_gameobject.guid WHERE map = '%i' %s ORDER BY order_ ASC LIMIT 10",
+				m_bot->GetPositionX(), m_bot->GetPositionY(), m_bot->GetPositionZ(), m_bot->GetMapId(), eventFilter.str().c_str());
+
+			if (result)
+			{
+				do
+				{
+					Field *fields = result->Fetch();
+					uint32 guid = fields[0].GetUInt32();
+					uint32 entry = fields[1].GetUInt32();
+
+					GameObject *go = m_bot->GetMap()->GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid));
+					if (!go)
+						continue;
+
+					if (!go->isSpawned())
+						continue;
+
+					if (entry == 179830) // Alliance WSG Flag
+					{
+						// Get the flag
+
+						if (m_botState != BOTSTATE_LOOTING) // Don't add multiple
+						{
+							ObjectGuid lootCurrent = ObjectGuid(HIGHGUID_GAMEOBJECT, entry, guid);
+							m_lootTargets.push_back(lootCurrent);
+
+							SetState(BOTSTATE_LOOTING);
+						}
+
+						DoLoot();
+						TellMaster("Getting the flag");
+
+						return;
+					}
+				} while (result->NextRow());
+
+				delete result;
+			}
+		}
+
+		// Could not find flag, move towards flag room
+		float x, y, z;
+
+		// If we have flag, return it
+		if (iHaveFlag)
+		{
+			GetFriendlyFlagRoom(&x, &y, &z);
+
+			// Send capture trigger if we're near
+			if (m_bot->GetDistance(x, y, z) < 5.0f)
+			{
+				SendTrigger(3647);
+			}
+
+			// move to mid if we're north of it
+			else if (false && m_bot->GetPositionX() > 1260)
+			{
+				x = 1257;
+				y = 1438;
+				z = 315;
+			}
+
+			m_bot->GetMotionMaster()->MovePoint(m_bot->GetMapId(), x, y, z);
+		}
+
+		else // Get the flag
+		{
+			GetEnemyFlagRoom(&x, &y, &z);
+
+			// move to mid if we're south of it
+			if (false && m_bot->GetPositionX() < 1250)
+			{
+				x = 1257;
+				y = 1438;
+				z = 315;
+			}
+
+			m_bot->GetMotionMaster()->MovePoint(m_bot->GetMapId(), x, y, z);
+		}
+	}
 }
 
 void PlayerbotAI::MovementClear()
@@ -4424,6 +4547,44 @@ void PlayerbotAI::MovementClear()
     // stand up...
     if (!m_bot->IsStandState() && !IsFeasting())
         m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+}
+
+void PlayerbotAI::GetEnemyFlagRoom(float* x, float* y, float* z)
+{
+	if (m_bot->GetTeam() == ALLIANCE)
+	{
+		// Horde flag room
+		*x = 916.2215f;
+		*y = 1433.859f;
+		*z = 346.5f;
+	}
+
+	else
+	{
+		// Alliance flag room
+		*x = 1538.40f;
+		*y = 1481.25f;
+		*z = 354.43f;
+	}
+}
+
+void PlayerbotAI::GetFriendlyFlagRoom(float* x, float* y, float* z)
+{
+	if (m_bot->GetTeam() == HORDE)
+	{
+		// Horde flag room
+		*x = 916.2215f;
+		*y = 1433.859f;
+		*z = 346.5f;
+	}
+
+	else
+	{
+		// Alliance flag room
+		*x = 1538.40f;
+		*y = 1481.25f;
+		*z = 354.43f;
+	}
 }
 
 void PlayerbotAI::PlaySound(uint32 soundid)
@@ -7629,27 +7790,27 @@ void PlayerbotAI::HandleCommand(const std::string& text, Player& fromPlayer)
                         {
                             m_bot->RewardQuest(pQuest, rewardIdx, pNpc, false);
 
-                            std::string questTitle  = pQuest->GetTitle();
-                            m_bot->GetPlayerbotAI()->QuestLocalization(questTitle, questID);
-                            std::string itemName = pRewardItem->Name1;
-                            m_bot->GetPlayerbotAI()->ItemLocalization(itemName, pRewardItem->ItemId);
+std::string questTitle = pQuest->GetTitle();
+m_bot->GetPlayerbotAI()->QuestLocalization(questTitle, questID);
+std::string itemName = pRewardItem->Name1;
+m_bot->GetPlayerbotAI()->ItemLocalization(itemName, pRewardItem->ItemId);
 
-                            std::ostringstream out;
-                            out << "|cffffffff|Hitem:" << pRewardItem->ItemId << ":0:0:0:0:0:0:0" << "|h[" << itemName << "]|h|r rewarded";
-                            SendWhisper(out.str(), fromPlayer);
-                            wasRewarded = true;
-                        }
-                    }
-            }
-        }
-        else
-        {
-            // TODO: make this only in response to direct whispers (chatting in party chat can in fact be between humans)
-            std::string msg = "What? For a list of commands, ask for 'help'.";
-            SendWhisper(msg, fromPlayer);
-            m_bot->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
-        }
-    }
+std::ostringstream out;
+out << "|cffffffff|Hitem:" << pRewardItem->ItemId << ":0:0:0:0:0:0:0" << "|h[" << itemName << "]|h|r rewarded";
+SendWhisper(out.str(), fromPlayer);
+wasRewarded = true;
+						}
+					}
+			}
+		}
+		else
+		{
+			// TODO: make this only in response to direct whispers (chatting in party chat can in fact be between humans)
+			std::string msg = "What? For a list of commands, ask for 'help'.";
+			SendWhisper(msg, fromPlayer);
+			m_bot->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
+		}
+	}
 }
 
 /**
@@ -7663,54 +7824,54 @@ void PlayerbotAI::HandleCommand(const std::string& text, Player& fromPlayer)
 */
 bool PlayerbotAI::ExtractCommand(const std::string sLookingFor, std::string &text, bool bUseShort)
 {
-    // ("help" + " ") < "help X"  AND  text's start (as big as sLookingFor) == sLookingFor
-    // Recommend AGAINST adapting this for non-space situations (thinking MangosZero)
-    // - unknown would risk being (short for "use") 'u' + "nknown"
-    if (sLookingFor.size() + 1 < text.size() && text.at(sLookingFor.size()) == ' '
-        && 0 == text.substr(0, sLookingFor.size()).compare(sLookingFor))
-    {
-        text = text.substr(sLookingFor.size()+1);
-        return true;
-    }
+	// ("help" + " ") < "help X"  AND  text's start (as big as sLookingFor) == sLookingFor
+	// Recommend AGAINST adapting this for non-space situations (thinking MangosZero)
+	// - unknown would risk being (short for "use") 'u' + "nknown"
+	if (sLookingFor.size() + 1 < text.size() && text.at(sLookingFor.size()) == ' '
+		&& 0 == text.substr(0, sLookingFor.size()).compare(sLookingFor))
+	{
+		text = text.substr(sLookingFor.size() + 1);
+		return true;
+	}
 
-    if (0 == text.compare(sLookingFor))
-    {
-        text = "";
-        return true;
-    }
+	if (0 == text.compare(sLookingFor))
+	{
+		text = "";
+		return true;
+	}
 
-    if (bUseShort)
-    {
-        if (text.size() > 1 && sLookingFor.at(0) == text.at(0) && text.at(1) == ' ')
-        {
-            text = text.substr(2);
-            return true;
-        }
-        else if(text.size() == 1 && sLookingFor.at(0) == text.at(0))
-        {
-            text = "";
-            return true;
-        }
-    }
+	if (bUseShort)
+	{
+		if (text.size() > 1 && sLookingFor.at(0) == text.at(0) && text.at(1) == ' ')
+		{
+			text = text.substr(2);
+			return true;
+		}
+		else if (text.size() == 1 && sLookingFor.at(0) == text.at(0))
+		{
+			text = "";
+			return true;
+		}
+	}
 
-    return false;
+	return false;
 }
 
 void PlayerbotAI::_HandleCommandReset(std::string &text, Player &fromPlayer)
 {
-    if (text != "")
-    {
-        SendWhisper("reset does not have a subcommand.", fromPlayer);
-        return;
-    }
-    SetState(BOTSTATE_NORMAL);
-    MovementReset();
-    SetQuestNeedItems();
-    SetQuestNeedCreatures();
-    UpdateAttackerInfo();
-    m_lootTargets.clear();
-    m_lootCurrent = ObjectGuid();
-    m_targetCombat = 0;
+	if (text != "")
+	{
+		SendWhisper("reset does not have a subcommand.", fromPlayer);
+		return;
+	}
+	SetState(BOTSTATE_NORMAL);
+	MovementReset();
+	SetQuestNeedItems();
+	SetQuestNeedCreatures();
+	UpdateAttackerInfo();
+	m_lootTargets.clear();
+	m_lootCurrent = ObjectGuid();
+	m_targetCombat = 0;
 }
 
 void PlayerbotAI::_HandleCommandDebug(std::string &text, Player &fromPlayer)
@@ -7721,10 +7882,30 @@ void PlayerbotAI::_HandleCommandDebug(std::string &text, Player &fromPlayer)
 		m_bDebugFeast = true;
 	}
 
-	if (ExtractCommand("joinbg", text))
+	else if (ExtractCommand("joinbg", text))
 	{
 		TellMaster("Attempting to join BG");
 		JoinBattleground();
+	}
+
+	else if (ExtractCommand("flag", text))
+	{
+		SetMovementOrder(MOVEMENT_WSG);
+	}
+
+	else if (ExtractCommand("haveflag", text))
+	{
+		m_bHasFlag = true;
+	}
+
+	else if (ExtractCommand("nagrand", text))
+	{
+		m_bNagrandDebug = true;
+	}
+
+	else if (ExtractCommand("wsg", text))
+	{
+		m_bNagrandDebug = false;
 	}
 }
 
@@ -7745,6 +7926,15 @@ void PlayerbotAI::JoinBattleground()
 	action = 0x1;
 
 	*packet << type << unk2 << bgTypeId_ << unk << action;
+
+	m_bot->GetSession()->QueuePacket(packet); // queue the packet to get around race condition
+}
+
+void PlayerbotAI::SendTrigger(uint32 triggerId)
+{
+	WorldPacket* const packet = new WorldPacket(CMSG_AREATRIGGER, 4);
+
+	*packet << triggerId;
 
 	m_bot->GetSession()->QueuePacket(packet); // queue the packet to get around race condition
 }
@@ -8949,6 +9139,7 @@ void PlayerbotAI::_HandleCommandFind(std::string &text, Player &fromPlayer)
     }
 
     SetMovementOrder(MOVEMENT_STAY);
+	TellMaster("I'm going!");
     m_bot->GetMotionMaster()->MovePoint(go->GetMapId(), go->GetPositionX(), go->GetPositionY(), go->GetPositionZ());
     m_lootTargets.clear();
     m_lootCurrent = ObjectGuid();

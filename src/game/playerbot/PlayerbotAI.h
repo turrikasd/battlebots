@@ -170,7 +170,8 @@ public:
     {
         MOVEMENT_NONE               = 0x00,
         MOVEMENT_FOLLOW             = 0x01,
-        MOVEMENT_STAY               = 0x02
+        MOVEMENT_STAY               = 0x02,
+		MOVEMENT_WSG				= 0x03
     };
 
     enum TaskFlags
@@ -512,6 +513,9 @@ public:
     std::string AuctionResult(std::string subject, std::string body);
 
 	void JoinBattleground();
+	void SendTrigger(uint32 triggerId);
+	void GetEnemyFlagRoom(float* x, float* y, float* z);
+	void GetFriendlyFlagRoom(float* x, float* y, float* z);
 
 private:
     bool ExtractCommand(const std::string sLookingFor, std::string &text, bool bUseShort = false);
@@ -650,6 +654,8 @@ private:
 
 	// Debug Commands
 	bool m_bDebugFeast;
+	bool m_bHasFlag;
+	bool m_bNagrandDebug;
 };
 
 #endif
