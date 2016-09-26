@@ -36,6 +36,7 @@
 #include "../GuildMgr.h"
 #include "../Language.h"
 #include "../LootMgr.h"
+#include "BattleGround\BattleGroundWS.h"
 #include <iomanip>
 #include <iostream>
 
@@ -4418,6 +4419,9 @@ void PlayerbotAI::MovementReset()
 
 	else if (m_movementOrder == MOVEMENT_WSG)
 	{
+		if (!m_iWsgLastArea) // 1 for offensive, 2 for def
+			m_iWsgLastArea = urand(1, 2);
+
 		// Alliance flag aura 23335
 		bool iHaveFlag = false;
 		bool ourTeamHasFlag = false;
@@ -4433,8 +4437,63 @@ void PlayerbotAI::MovementReset()
 
 		if (iHaveFlag)
 			ourTeamHasFlag = true;
+		else
+		{
+			if (BattleGround* bg = m_bot->GetBattleGround())
+			{
+				if (bg->GetTypeID() == BATTLEGROUND_WS)
+				{
+					BattleGroundWS* bgws = dynamic_cast<BattleGroundWS*>(bg);
+					
+					if (m_bot->GetTeam() == HORDE && bgws->IsAllianceFlagPickedUp())
+					{
+						ourTeamHasFlag = true;
 
-		if (!iHaveFlag)
+						ObjectGuid allianceFlagCarrierGuid = bgws->GetAllianceFlagCarrierGuid();
+						Unit* allianceFlagCarrier = ObjectAccessor::GetUnit(*m_bot, allianceFlagCarrierGuid);
+
+						// Follow flag carrier if close
+						if (m_iWsgLastArea == 2 && m_bot->GetDistance(allianceFlagCarrier) < 50.0f)
+						{
+							SetMovementOrder(MOVEMENT_FOLLOW, allianceFlagCarrier); // Follow our flag carrier
+						}
+
+
+						if (m_iWsgLastArea == 1 && bgws->IsHordeFlagPickedUp())
+						{
+							ObjectGuid hordeFlagCarrierGuid = bgws->GetHordeFlagCarrierGuid();
+							Unit* hordeFlagCarrier = ObjectAccessor::GetUnit(*m_bot, hordeFlagCarrierGuid);
+
+							GetCombatTarget(hordeFlagCarrier); // Attack enemy flag carrier
+						}
+					}
+
+					else if (m_bot->GetTeam() == ALLIANCE && bgws->IsHordeFlagPickedUp())
+					{
+						ourTeamHasFlag = true;
+
+						ObjectGuid hordeFlagCarrierGuid = bgws->GetHordeFlagCarrierGuid();
+						Unit* hordeFlagCarrier = ObjectAccessor::GetUnit(*m_bot, hordeFlagCarrierGuid);
+
+						// Follow flag carrier if close
+						if (m_iWsgLastArea == 2 && m_bot->GetDistance(hordeFlagCarrier) < 50.0f)
+						{
+							SetMovementOrder(MOVEMENT_FOLLOW, hordeFlagCarrier); // Follow our flag carrier
+						}
+
+						if (m_iWsgLastArea == 1 && bgws->IsAllianceFlagPickedUp())
+						{
+							ObjectGuid allianceFlagCarrierGuid = bgws->GetAllianceFlagCarrierGuid();
+							Unit* allianceFlagCarrier = ObjectAccessor::GetUnit(*m_bot, allianceFlagCarrierGuid);
+
+							GetCombatTarget(allianceFlagCarrier); // attack enemy flag carrier
+						}
+					}
+				}
+			}
+		}
+
+		if (!ourTeamHasFlag)
 		{
 			// Find flag
 			uint32 count = 0;
@@ -4515,14 +4574,17 @@ void PlayerbotAI::MovementReset()
 			// Send capture trigger if we're near
 			if (m_bot->GetDistance(x, y, z) < 5.0f)
 			{
-				SendTrigger(3647);
-				SendTrigger(3646); // alliance side
+				if (m_bot->GetTeam() == HORDE)
+					SendTrigger(3647);
+				else
+					SendTrigger(3646); // alliance side
 			}
 
 			else if (m_bot->GetDistance(x, y, z) < 20.0f)
 			{
-				m_iWsgLastArea = 0;
 				GetRandomPointMid(&x, &y, &z, ourTeamHasFlag);
+
+
 			}
 
 			m_bot->GetMotionMaster()->MovePoint(m_bot->GetMapId(), x, y, z);
@@ -4540,7 +4602,6 @@ void PlayerbotAI::MovementReset()
 
 			else if (m_bot->GetDistance(x, y, z) < 20.0f && ourTeamHasFlag)
 			{
-				m_iWsgLastArea = 4;
 				GetRandomPointMid(&x, &y, &z, ourTeamHasFlag);
 			}
 
@@ -4599,9 +4660,6 @@ void PlayerbotAI::GetFriendlyFlagRoom(float* x, float* y, float* z)
 
 void PlayerbotAI::GetRandomPointMid(float* x, float* y, float* z, bool haveFlag)
 {
-	if (m_iWsgLastArea == NULL || !m_iWsgLastArea)
-		m_iWsgLastArea = 0;
-
 	int nextArea = 0; // 0 our flag room, 4 enemy flag room
 
 	if (haveFlag)
@@ -4639,9 +4697,6 @@ void PlayerbotAI::GetRandomPointMid(float* x, float* y, float* z, bool haveFlag)
 	switch (nextArea)
 	{
 	case 1:
-
-		m_iWsgLastArea = 1;
-
 		if (m_bot->GetTeam() == ALLIANCE)
 		{
 			if (num == 1)
@@ -4679,9 +4734,6 @@ void PlayerbotAI::GetRandomPointMid(float* x, float* y, float* z, bool haveFlag)
 		break;
 
 	case 2:
-
-		m_iWsgLastArea = 2;
-
 		if (num == 1)
 		{
 			*x = 1257; // mid east
@@ -4699,9 +4751,6 @@ void PlayerbotAI::GetRandomPointMid(float* x, float* y, float* z, bool haveFlag)
 		break;
 
 	case 3:
-
-		m_iWsgLastArea = 3;
-
 		if (m_bot->GetTeam() == HORDE)
 		{
 			if (num == 1)
@@ -4927,10 +4976,12 @@ void PlayerbotAI::UpdateAI(const uint32 /*p_time*/)
             }
             m_bot->SetBotDeathTimer();
             m_bot->BuildPlayerRepop();
+
+			m_bot->RepopAtGraveyard();
             // relocate ghost
-            WorldLocation loc;
-            Corpse *corpse = m_bot->GetCorpse();
-            corpse->GetPosition(loc);
+            //WorldLocation loc;
+            //Corpse *corpse = m_bot->GetCorpse();
+            //corpse->GetPosition(loc);
             //m_bot->TeleportTo(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, m_bot->GetOrientation());
             // set state to released
             SetState(BOTSTATE_DEADRELEASED);
@@ -4947,7 +4998,9 @@ void PlayerbotAI::UpdateAI(const uint32 /*p_time*/)
                 return;
             // teleport ghost from graveyard to corpse
             // DEBUG_LOG ("[PlayerbotAI]: UpdateAI - Teleport %s to corpse...", m_bot->GetName() );
-            DoTeleport(*corpse);
+            //DoTeleport(*corpse);
+			m_bot->RepopAtGraveyard();
+
             // check if we are allowed to resurrect now
             if ((corpse->GetGhostTime() + m_bot->GetCorpseReclaimDelay(corpse->GetType() == CORPSE_RESURRECTABLE_PVP)) > CurrentTime())
             {
@@ -6480,13 +6533,12 @@ void PlayerbotAI::findNearbyGO()
 
 void PlayerbotAI::findNearbyPlayer()
 {
-	std::list<Unit*> unityList;
 	float radius = 40.0f;
 
 	Unit* victim = nullptr;
 
 	MaNGOS::NearestAttackableUnitInObjectRangeCheck u_check(m_bot, m_bot, radius);
-	MaNGOS::UnitLastSearcher<MaNGOS::NearestAttackableUnitInObjectRangeCheck> checker(victim, u_check);
+	MaNGOS::UnitSearcher<MaNGOS::NearestAttackableUnitInObjectRangeCheck> checker(victim, u_check);
 	Cell::VisitAllObjects(m_bot, checker, radius);
 
 	if (victim)

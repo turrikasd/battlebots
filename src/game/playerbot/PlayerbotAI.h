@@ -381,7 +381,7 @@ public:
     // Your handlers can call these actions to make the bot do things.
     void TellMaster(const std::string& text) const;
     void TellMaster(const char *fmt, ...) const;
-    void SendWhisper(const std::string& text, Player& player) const;
+	void SendWhisper(const std::string& text, Player& player) const;
     bool CastSpell(const char* args);
     bool CastSpell(uint32 spellId);
     bool CastSpell(uint32 spellId, Unit& target);
