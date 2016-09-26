@@ -287,25 +287,31 @@ void PlayerbotRogueAI::DoNonCombatActions()
     if (m_bot->HasAura(STEALTH))
         m_bot->RemoveSpellsCausingAura(SPELL_AURA_MOD_STEALTH);
 
-    // hp check
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+	if (ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
 
-    Item* pItem = ai->FindFood();
-    Item* fItem = ai->FindBandage();
+    //// hp check
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    if (pItem != nullptr && ai->GetHealthPercent() < 30)
-    {
-        ai->TellMaster("I could use some food.");
-        ai->UseItem(pItem);
-        return;
-    }
-    else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
-    {
-        ai->TellMaster("I could use first aid.");
-        ai->UseItem(fItem);
-        return;
-    }
+    //Item* pItem = ai->FindFood();
+    //Item* fItem = ai->FindBandage();
+
+    //if (pItem != nullptr && ai->GetHealthPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use some food.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
+    //else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
+    //{
+    //    ai->TellMaster("I could use first aid.");
+    //    ai->UseItem(fItem);
+    //    return;
+    //}
 
     // Search and apply poisons to weapons
     // Mainhand ...

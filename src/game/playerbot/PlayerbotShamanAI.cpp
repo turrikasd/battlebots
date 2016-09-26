@@ -503,38 +503,45 @@ void PlayerbotShamanAI::DoNonCombatActions()
        else if (FROSTBRAND_WEAPON > 0)
             (!m_bot->HasAura(FROSTBRAND_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(EARTHLIVING_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(WINDFURY_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(FLAMETONGUE_WEAPON, EFFECT_INDEX_0) && !m_bot->HasAura(ROCKBITER_WEAPON, EFFECT_INDEX_0) && ai->CastSpell(FROSTBRAND_WEAPON,*m_bot) );
  */
-    // mana check
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    Item* pItem = ai->FindDrink();
-    Item* fItem = ai->FindBandage();
+	if (ai->GetManaPercent() < 30 || ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
 
-    if (pItem != nullptr && ai->GetManaPercent() < 30)
-    {
-        ai->TellMaster("I could use a drink.");
-        ai->UseItem(pItem);
-        return;
-    }
+    //// mana check
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    // hp check
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+    //Item* pItem = ai->FindDrink();
+    //Item* fItem = ai->FindBandage();
 
-    pItem = ai->FindFood();
+    //if (pItem != nullptr && ai->GetManaPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use a drink.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
 
-    if (pItem != nullptr && ai->GetHealthPercent() < 30)
-    {
-        ai->TellMaster("I could use some food.");
-        ai->UseItem(pItem);
-        return;
-    }
-    else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
-    {
-        ai->TellMaster("I could use first aid.");
-        ai->UseItem(fItem);
-        return;
-    }
+    //// hp check
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+
+    //pItem = ai->FindFood();
+
+    //if (pItem != nullptr && ai->GetHealthPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use some food.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
+    //else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
+    //{
+    //    ai->TellMaster("I could use first aid.");
+    //    ai->UseItem(fItem);
+    //    return;
+    //}
 
     // heal master's group
     if (GetMaster()->GetGroup())

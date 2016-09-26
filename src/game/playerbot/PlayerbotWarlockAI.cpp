@@ -487,39 +487,45 @@ void PlayerbotWarlockAI::DoNonCombatActions()
         if (ai->CastSpell(LIFE_TAP, *m_bot))
             return;
 
-    if (ai->GetManaPercent() < 25)
-    {
-        Item* pItem = ai->FindDrink();
-        if (pItem)
-        {
-            ai->TellMaster("I could use a drink.");
-            ai->UseItem(pItem);
-            return;
-        }
-    }
+	if (ai->GetManaPercent() < 30 || ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
 
-    // hp check
-    if (ai->GetHealthPercent() < 30)
-    {
-        Item* pItem = ai->FindFood();
-        if (pItem)
-        {
-            ai->TellMaster("I could use some food.");
-            ai->UseItem(pItem);
-            return;
-        }
-    }
+    //if (ai->GetManaPercent() < 25)
+    //{
+    //    Item* pItem = ai->FindDrink();
+    //    if (pItem)
+    //    {
+    //        ai->TellMaster("I could use a drink.");
+    //        ai->UseItem(pItem);
+    //        return;
+    //    }
+    //}
 
-    if (ai->GetHealthPercent() < 50 && !m_bot->HasAura(RECENTLY_BANDAGED))
-    {
-        Item* fItem = ai->FindBandage();
-        if (fItem)
-        {
-            ai->TellMaster("I could use first aid.");
-            ai->UseItem(fItem);
-            return;
-        }
-    }
+    //// hp check
+    //if (ai->GetHealthPercent() < 30)
+    //{
+    //    Item* pItem = ai->FindFood();
+    //    if (pItem)
+    //    {
+    //        ai->TellMaster("I could use some food.");
+    //        ai->UseItem(pItem);
+    //        return;
+    //    }
+    //}
+
+    //if (ai->GetHealthPercent() < 50 && !m_bot->HasAura(RECENTLY_BANDAGED))
+    //{
+    //    Item* fItem = ai->FindBandage();
+    //    if (fItem)
+    //    {
+    //        ai->TellMaster("I could use first aid.");
+    //        ai->UseItem(fItem);
+    //        return;
+    //    }
+    //}
 
     //Heal Voidwalker
     if (pet && pet->GetEntry() == DEMON_VOIDWALKER && CONSUME_SHADOWS && pet->GetHealthPercent() < 75 && !pet->HasAura(CONSUME_SHADOWS))

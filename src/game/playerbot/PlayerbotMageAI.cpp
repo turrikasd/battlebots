@@ -407,54 +407,60 @@ void PlayerbotMageAI::DoNonCombatActions()
     if (BuffPlayer(m_bot))
         return;
 
-    // conjure food & water
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+	if (ai->GetManaPercent() < 30 || ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
 
-    Item* pItem = ai->FindDrink();
-    Item* fItem = ai->FindBandage();
+    //// conjure food & water
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    if (pItem == nullptr && CONJURE_WATER && ai->GetBaseManaPercent() >= 48)
-    {
-        ai->TellMaster("I'm conjuring some water.");
-        ai->CastSpell(CONJURE_WATER, *m_bot);
-        ai->SetIgnoreUpdateTime(3);
-        return;
-    }
-    else if (pItem != nullptr && ai->GetManaPercent() < 30)
-    {
-        ai->TellMaster("I could use a drink.");
-        ai->UseItem(pItem);
-        return;
-    }
+    //Item* pItem = ai->FindDrink();
+    //Item* fItem = ai->FindBandage();
 
-    pItem = ai->FindFood();
+    //if (pItem == nullptr && CONJURE_WATER && ai->GetBaseManaPercent() >= 48)
+    //{
+    //    ai->TellMaster("I'm conjuring some water.");
+    //    ai->CastSpell(CONJURE_WATER, *m_bot);
+    //    ai->SetIgnoreUpdateTime(3);
+    //    return;
+    //}
+    //else if (pItem != nullptr && ai->GetManaPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use a drink.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
 
-    if (pItem == nullptr && CONJURE_FOOD && ai->GetBaseManaPercent() >= 48)
-    {
-        ai->TellMaster("I'm conjuring some food.");
-        ai->CastSpell(CONJURE_FOOD, *m_bot);
-        ai->SetIgnoreUpdateTime(3);
-    }
+    //pItem = ai->FindFood();
 
-    // hp check
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+    //if (pItem == nullptr && CONJURE_FOOD && ai->GetBaseManaPercent() >= 48)
+    //{
+    //    ai->TellMaster("I'm conjuring some food.");
+    //    ai->CastSpell(CONJURE_FOOD, *m_bot);
+    //    ai->SetIgnoreUpdateTime(3);
+    //}
 
-    pItem = ai->FindFood();
+    //// hp check
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    if (pItem != nullptr && ai->GetHealthPercent() < 30)
-    {
-        ai->TellMaster("I could use some food.");
-        ai->UseItem(pItem);
-        return;
-    }
-    else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
-    {
-        ai->TellMaster("I could use first aid.");
-        ai->UseItem(fItem);
-        return;
-    }
+    //pItem = ai->FindFood();
+
+    //if (pItem != nullptr && ai->GetHealthPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use some food.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
+    //else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
+    //{
+    //    ai->TellMaster("I could use first aid.");
+    //    ai->UseItem(fItem);
+    //    return;
+    //}
 
 } // end DoNonCombatActions
 

@@ -321,23 +321,29 @@ void PlayerbotWarriorAI::DoNonCombatActions()
     if (VIGILANCE > 0)
         (!GetMaster()->HasAura(VIGILANCE, EFFECT_INDEX_0) && ai->CastSpell(VIGILANCE, *GetMaster()));
 
-    // hp check
-    if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
-        m_bot->SetStandState(UNIT_STAND_STATE_STAND);
+	if (ai->GetHealthPercent() < 30)
+	{
+		ai->Feast();
+		return;
+	}
 
-    Item* pItem = ai->FindFood();
-    Item* fItem = ai->FindBandage();
+    //// hp check
+    //if (m_bot->getStandState() != UNIT_STAND_STATE_STAND)
+    //    m_bot->SetStandState(UNIT_STAND_STATE_STAND);
 
-    if (pItem != nullptr && ai->GetHealthPercent() < 30)
-    {
-        ai->TellMaster("I could use some food.");
-        ai->UseItem(pItem);
-        return;
-    }
-    else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
-    {
-        ai->TellMaster("I could use first aid.");
-        ai->UseItem(fItem);
-        return;
-    }
+    //Item* pItem = ai->FindFood();
+    //Item* fItem = ai->FindBandage();
+
+    //if (pItem != nullptr && ai->GetHealthPercent() < 30)
+    //{
+    //    ai->TellMaster("I could use some food.");
+    //    ai->UseItem(pItem);
+    //    return;
+    //}
+    //else if (pItem == nullptr && fItem != nullptr && !m_bot->HasAura(RECENTLY_BANDAGED, EFFECT_INDEX_0) && ai->GetHealthPercent() < 70)
+    //{
+    //    ai->TellMaster("I could use first aid.");
+    //    ai->UseItem(fItem);
+    //    return;
+    //}
 } // end DoNonCombatActions
