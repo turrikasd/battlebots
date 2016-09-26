@@ -1559,7 +1559,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 
 		//TellMaster("SMSG_BATTLEFIELD_STATUS Recieved with StatusID %u", StatusID);
 
-		if (StatusID == STATUS_WAIT_QUEUE) // This whole part is wrong somehow but works...
+		if (StatusID == STATUS_WAIT_QUEUE || StatusID == STATUS_WAIT_JOIN) // This whole part is wrong somehow but works...
 		{
 			TellMaster("SMSG_BATTLEFIELD_STATUS with StatusID STATUS_WAIT_JOIN Recieved. Joining BG...");
 			m_bot->GetMotionMaster()->Clear(true);
@@ -4421,11 +4421,18 @@ void PlayerbotAI::MovementReset()
 		// Alliance flag aura 23335
 		bool iHaveFlag = false;
 		bool ourTeamHasFlag = false;
+		uint32 flagEntry = 179830; // Alliance flag
+
+		if (m_bot->GetTeam() == ALLIANCE)
+			flagEntry = 179831; // Horde flag
 
 		if (m_bot->HasAura(23335) || m_bot->HasAura(23333) || m_bHasFlag)
 		{
 			iHaveFlag = true;
 		}
+
+		if (iHaveFlag)
+			ourTeamHasFlag = true;
 
 		if (!iHaveFlag)
 		{
@@ -4474,7 +4481,7 @@ void PlayerbotAI::MovementReset()
 					if (!go->isSpawned())
 						continue;
 
-					if (entry == 179830) // Alliance WSG Flag
+					if (entry == flagEntry)
 					{
 						// Get the flag
 
@@ -4509,14 +4516,13 @@ void PlayerbotAI::MovementReset()
 			if (m_bot->GetDistance(x, y, z) < 5.0f)
 			{
 				SendTrigger(3647);
+				SendTrigger(3646); // alliance side
 			}
 
-			// move to mid if we're north of it
-			else if (false && m_bot->GetPositionX() > 1260)
+			else if (m_bot->GetDistance(x, y, z) < 20.0f)
 			{
-				x = 1257;
-				y = 1438;
-				z = 315;
+				m_iWsgLastArea = 0;
+				GetRandomPointMid(&x, &y, &z, ourTeamHasFlag);
 			}
 
 			m_bot->GetMotionMaster()->MovePoint(m_bot->GetMapId(), x, y, z);
@@ -4525,13 +4531,17 @@ void PlayerbotAI::MovementReset()
 		else // Get the flag
 		{
 			GetEnemyFlagRoom(&x, &y, &z);
+			float distanceToEnemyFlag = m_bot->GetDistance(x, y, z);
 
-			// move to mid if we're south of it
-			if (false && m_bot->GetPositionX() < 1250)
+			if (distanceToEnemyFlag > 100.0f)
 			{
-				x = 1257;
-				y = 1438;
-				z = 315;
+				GetRandomPointMid(&x, &y, &z, ourTeamHasFlag);
+			}
+
+			else if (m_bot->GetDistance(x, y, z) < 20.0f && ourTeamHasFlag)
+			{
+				m_iWsgLastArea = 4;
+				GetRandomPointMid(&x, &y, &z, ourTeamHasFlag);
 			}
 
 			m_bot->GetMotionMaster()->MovePoint(m_bot->GetMapId(), x, y, z);
@@ -4585,6 +4595,198 @@ void PlayerbotAI::GetFriendlyFlagRoom(float* x, float* y, float* z)
 		*y = 1481.25f;
 		*z = 354.43f;
 	}
+}
+
+void PlayerbotAI::GetRandomPointMid(float* x, float* y, float* z, bool haveFlag)
+{
+	if (m_iWsgLastArea == NULL || !m_iWsgLastArea)
+		m_iWsgLastArea = 0;
+
+	int nextArea = 0; // 0 our flag room, 4 enemy flag room
+
+	if (haveFlag)
+	{
+		GetEnemyFlagRoom(x, y, z);
+		float distance = m_bot->GetDistance(*x, *y, *z);
+
+		if (distance < 30.0f)
+			nextArea = 3;
+		else if (distance > 30.0f && distance < 100.0f)
+			nextArea = 2;
+		else if (distance > 100.0f)
+			nextArea = 1;
+		else
+			nextArea = 0;
+	}
+
+	else
+	{
+		GetFriendlyFlagRoom(x, y, z);
+		float distance = m_bot->GetDistance(*x, *y, *z);
+
+		if (distance < 30.0f)
+			nextArea = 1;
+		else if (distance > 30.0f && distance < 100.0f)
+			nextArea = 2;
+		else if (distance > 100.0f)
+			nextArea = 3;
+		else
+			nextArea = 4;
+	}
+
+	uint32 num = urand(0, 2);
+
+	switch (nextArea)
+	{
+	case 1:
+
+		m_iWsgLastArea = 1;
+
+		if (m_bot->GetTeam() == ALLIANCE)
+		{
+			if (num == 1)
+			{
+				*x = 1389; // alliance ramp
+				*y = 1391;
+				*z = 335.5;
+			}
+			
+			else
+			{
+				*x = 1450; // alliance speed
+				*y = 1468;
+				*z = 343;
+			}
+		}
+
+		else
+		{
+			if (num == 1)
+			{
+				*x = 1051; // Horde ramp
+				*y = 1450;
+				*z = 331.5f;
+			}
+
+			else
+			{
+				*x = 1004; // horde speed
+				*y = 1450;
+				*z = 336.5f;
+			}
+		}
+
+		break;
+
+	case 2:
+
+		m_iWsgLastArea = 2;
+
+		if (num == 1)
+		{
+			*x = 1257; // mid east
+			*y = 1438;
+			*z = 315;
+		}
+
+		else
+		{
+			*x = 1249; // mid west
+			*y = 1534;
+			*z = 308;
+		}
+
+		break;
+
+	case 3:
+
+		m_iWsgLastArea = 3;
+
+		if (m_bot->GetTeam() == HORDE)
+		{
+			if (num == 1)
+			{
+				*x = 1389; // alliance ramp
+				*y = 1391;
+				*z = 335.5;
+			}
+
+			else
+			{
+				*x = 1450; // alliance speed
+				*y = 1468;
+				*z = 343;
+			}
+		}
+
+		else
+		{
+			if (num == 1)
+			{
+				*x = 1051; // Horde ramp
+				*y = 1450;
+				*z = 331.5f;
+			}
+
+			else
+			{
+				*x = 1004; // horde speed
+				*y = 1450;
+				*z = 336.5f;
+			}
+		}
+
+		break;
+
+	default:
+		GetEnemyFlagRoom(x, y, z);
+		break;
+	}
+
+	return;
+
+	switch (num)
+	{
+	case 0: // Mid east of horde tunnel stump
+		*x = 1257;
+		*y = 1438;
+		*z = 315;
+		break;
+
+	case 1: // horde ramp
+		*x = 1051;
+		*y = 1450;
+		*z = 331.5f;
+		break;
+
+	case 2: // horde speed
+		*x = 1004;
+		*y = 1450;
+		*z = 336.5f;
+		break;
+
+	case 3: // west
+		*x = 1249;
+		*y = 1534;
+		*z = 308;
+		break;
+
+	case 4: // alliance ramp
+		*x = 1389;
+		*y = 1391;
+		*z = 335.5;
+		break;
+
+	case 5: // alliance speed
+		*x = 1450;
+		*y = 1468;
+		*z = 343;
+		break;
+
+	default:
+		break;
+	}
+
 }
 
 void PlayerbotAI::PlaySound(uint32 soundid)
@@ -4729,7 +4931,7 @@ void PlayerbotAI::UpdateAI(const uint32 /*p_time*/)
             WorldLocation loc;
             Corpse *corpse = m_bot->GetCorpse();
             corpse->GetPosition(loc);
-            m_bot->TeleportTo(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, m_bot->GetOrientation());
+            //m_bot->TeleportTo(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, m_bot->GetOrientation());
             // set state to released
             SetState(BOTSTATE_DEADRELEASED);
 
@@ -4897,6 +5099,12 @@ void PlayerbotAI::UpdateAI(const uint32 /*p_time*/)
 
         return;
     }
+
+	// find target to attck if not in combat
+	if (!IsInCombat() && m_botState == BOTSTATE_NORMAL)
+	{
+		findNearbyPlayer();
+	}
 
     // handle combat (either self/master/group in combat, or combat state and valid target)
     if (IsInCombat() || (m_botState == BOTSTATE_COMBAT && m_targetCombat) ||  m_ScenarioType == SCENARIO_PVP_DUEL)
@@ -6270,6 +6478,23 @@ void PlayerbotAI::findNearbyGO()
     }
 }
 
+void PlayerbotAI::findNearbyPlayer()
+{
+	std::list<Unit*> unityList;
+	float radius = 40.0f;
+
+	Unit* victim = nullptr;
+
+	MaNGOS::NearestAttackableUnitInObjectRangeCheck u_check(m_bot, m_bot, radius);
+	MaNGOS::UnitLastSearcher<MaNGOS::NearestAttackableUnitInObjectRangeCheck> checker(victim, u_check);
+	Cell::VisitAllObjects(m_bot, checker, radius);
+
+	if (victim)
+	{
+		GetCombatTarget(victim);
+	}
+}
+
 void PlayerbotAI::findNearbyCreature()
 {
     std::list<Creature*> creatureList;
@@ -6735,6 +6960,8 @@ bool PlayerbotAI::TradeCopper(uint32 copper)
 
 bool PlayerbotAI::DoTeleport(WorldObject &obj)
 {
+	return false; // Disable automatic teleport
+
     SetIgnoreUpdateTime(6);
     PlayerbotChatHandler ch(GetMaster());
     if (!ch.teleport(*m_bot))

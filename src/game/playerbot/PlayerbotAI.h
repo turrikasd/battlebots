@@ -326,6 +326,8 @@ public:
     void findNearbyGO();
     // finds nearby creatures, whose UNIT_NPC_FLAGS match the flags specified in item list m_itemIds
     void findNearbyCreature();
+	// finds nearby players to attack
+	void findNearbyPlayer();
 
     void MakeSpellLink(const SpellEntry *sInfo, std::ostringstream &out);
     void MakeWeaponSkillLink(const SpellEntry *sInfo, std::ostringstream &out, uint32 skillid);
@@ -428,6 +430,7 @@ public:
     void Feast();
     void InterruptCurrentCastingSpell();
     void GetCombatTarget(Unit* forcedTarged = 0);
+	//void AttackUnit(Unit* unit);
     void GetDuelTarget(Unit* forcedTarget);
     Unit* GetCurrentTarget() { return m_targetCombat; };
     void DoNextCombatManeuver();
@@ -516,6 +519,7 @@ public:
 	void SendTrigger(uint32 triggerId);
 	void GetEnemyFlagRoom(float* x, float* y, float* z);
 	void GetFriendlyFlagRoom(float* x, float* y, float* z);
+	void GetRandomPointMid(float* x, float* y, float* z, bool haveFlag);
 
 private:
     bool ExtractCommand(const std::string sLookingFor, std::string &text, bool bUseShort = false);
@@ -656,6 +660,8 @@ private:
 	bool m_bDebugFeast;
 	bool m_bHasFlag;
 	bool m_bNagrandDebug;
+
+	int m_iWsgLastArea;
 };
 
 #endif
